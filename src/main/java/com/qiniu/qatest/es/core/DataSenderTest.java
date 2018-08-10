@@ -26,6 +26,7 @@ public class DataSenderTest extends AbstractJavaSamplerClient {
     private String path;//数据点读取路径
     private String pathbigger;
     private String patherror;
+    private String pipelineHost;
 
     @Override
     public void setupTest(JavaSamplerContext context) {
@@ -36,8 +37,9 @@ public class DataSenderTest extends AbstractJavaSamplerClient {
         path = context.getParameter("path");
         pathbigger = context.getParameter("pathbigger");
         patherror = context.getParameter("patherror");
+        pipelineHost = context.getParameter("pipelinehost");
         auth = Auth.create(ak, sk);
-        sender = new ParallelDataSender(repoName, this.auth, 5);
+        sender = new ParallelDataSender(repoName, this.auth,pipelineHost ,5);
     }
 
     public SampleResult runTest(JavaSamplerContext javaSamplerContext) {
@@ -72,6 +74,7 @@ public class DataSenderTest extends AbstractJavaSamplerClient {
         params.addArgument("path", "文件读取路径");
         params.addArgument("pathbigger", "大数据文件读取路径");//多次引用会有冲突
         params.addArgument("patherror", "错误文件读取路径");
+        params.addArgument("pipelinehost","打点路由地址");
         return params;
     }
 
@@ -86,8 +89,10 @@ public class DataSenderTest extends AbstractJavaSamplerClient {
                 return pointsFromFile(this.pathbigger);
             case 4:
                 return pointsFromFile(this.patherror);
+            default:
+                break;
         }
-        return new ArrayList<>();
+        return new ArrayList<Point>();
     }
 
     /**
@@ -96,7 +101,7 @@ public class DataSenderTest extends AbstractJavaSamplerClient {
      * @return
      */
     private List<Point> defalutData() {
-        List<Point> points = new ArrayList<>();
+        List<Point> points = new ArrayList<Point>();
         for (int i = 0; i < 100; i++) {
             points.add(makePoint(i));
         }
@@ -131,8 +136,8 @@ public class DataSenderTest extends AbstractJavaSamplerClient {
         Point p;
         BufferedReader reader = null;
         String temp;
-        List<Point> points = new ArrayList<>();
-        if (this.path.isEmpty() || !file.exists() || null == file) {
+        List<Point> points = new ArrayList<Point>();
+        if ( !file.exists() || null == file) {
             return points;
         }
         int line = 1;
