@@ -33,7 +33,8 @@ public class SelectTest extends AbstractJavaSamplerClient {
     private PartialSearchService partialSearchService;
     private SearchService searchService;
     private Boolean success;
-    private String searchscrool;
+    private String searchScrool;
+    private String searchParam;
 
     @Override
     public void setupTest(JavaSamplerContext context) {
@@ -43,7 +44,8 @@ public class SelectTest extends AbstractJavaSamplerClient {
         logDBHost = context.getParameter("logdbhost");
         searchType = context.getParameter("searchtype");
         searchSql = context.getParameter("searchsql");
-        searchscrool = context.getParameter("searchscrool");
+        searchScrool = context.getParameter("searchscrool");
+        searchParam = context.getParameter("searchparam");
         auth = Auth.create(ak, sk);
         client = new LogDBClient(new PandoraClientImpl(auth), logDBHost);
         success = true;
@@ -65,6 +67,7 @@ public class SelectTest extends AbstractJavaSamplerClient {
         arguments.addArgument("logdbhost", "logdb路由地址");
         arguments.addArgument("searchsql", "查询语句");
         arguments.addArgument("searchscrool", "查询间隔");
+        arguments.addArgument("searchparam","用,区分各个参数");
         return super.getDefaultParameters();
     }
 
@@ -121,14 +124,14 @@ public class SelectTest extends AbstractJavaSamplerClient {
         SearchService searchService = this.client.NewSearchService();
         ScrollSearchService scrollSearchService = this.client.NewScrollSearchService();
         SearchService.SearchRequest searchRequest = new SearchService.SearchRequest();
-        searchRequest.scroll = this.searchscrool;
+        searchRequest.scroll = this.searchScrool;
         searchRequest.query = this.searchSql;
         searchRequest.size = 7;
         scrollSearchService = this.client.NewScrollSearchService();
         try {
             SearchService.SearchResult result = searchService.search(repoName, searchRequest);
             String scrollId = result.scrollID;
-            scrollSearchService.scroll(repoName, this.searchscrool, scrollId);
+            scrollSearchService.scroll(repoName, this.searchScrool, scrollId);
         } catch (QiniuException e) {
             e.printStackTrace();
             success = false;
@@ -139,11 +142,36 @@ public class SelectTest extends AbstractJavaSamplerClient {
     //非永久存储的repo且具有时间字段的repo查询,对超大日志有具体优化
     private Boolean partialSearch() {
         partialSearchService = this.client.NewPartialSearchService();
+        PartialSearchService.SearchRequest request = new PartialSearchService.SearchRequest();
+        //参数用,分隔，严格按照定义
+        String[] params = this.searchParam.split(",");
+        request.queryString = this.searchSql;
+        request.size = Integer.parseInt(params[0]);
+        request.sort = "timestamp";
+        request.startTime = Long.parseLong(params[1]);
+        request.endTime = Long.parseLong(params[2]);
+        try {
+            PartialSearchService.SearchResult result = partialSearchService.search(repoName,request);
+        } catch (QiniuException e) {
+            e.printStackTrace();
+            success = false;
+        }
         return success;
     }
 
     //最常用的查询数据
     private Boolean search() {
+        searchService = this.client.NewSearchService();
+        SearchService.SearchRequest request = new SearchService.SearchRequest();
+        String[] paranms = this.searchParam.split(",");
+        request.size = Integer.parseInt(paranms[0]);
+        request.query = this.searchSql;
+        try {
+            SearchService.SearchResult result = searchService.search(repoName,request);
+        } catch (QiniuException e) {
+            e.printStackTrace();
+            success = false;
+        }
         return success;
     }
 }
