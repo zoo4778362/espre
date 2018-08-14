@@ -16,6 +16,7 @@ import org.apache.jmeter.samplers.SampleResult;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Random;
 
 public class SelectTest extends AbstractJavaSamplerClient {
 
@@ -35,6 +36,8 @@ public class SelectTest extends AbstractJavaSamplerClient {
     private Boolean success;
     private String searchScrool;
     private String searchParam;
+    private int needChangeSql;
+    private Boolean changeSql;
 
     @Override
     public void setupTest(JavaSamplerContext context) {
@@ -48,7 +51,13 @@ public class SelectTest extends AbstractJavaSamplerClient {
         searchParam = context.getParameter("searchparam");
         auth = Auth.create(ak, sk);
         client = new LogDBClient(new PandoraClientImpl(auth), logDBHost);
+        needChangeSql = context.getIntParameter("needchangesql");
         success = true;
+        if(needChangeSql > 0){
+            changeSql = true;
+        }else {
+            changeSql = false;
+        }
     }
 
     @Override
@@ -68,6 +77,7 @@ public class SelectTest extends AbstractJavaSamplerClient {
         arguments.addArgument("searchsql", "查询语句");
         arguments.addArgument("searchscrool", "查询间隔");
         arguments.addArgument("searchparam","用,区分各个参数");
+        arguments.addArgument("needchangesql","0：不需要 1：需要");
         return super.getDefaultParameters();
     }
 
@@ -108,7 +118,7 @@ public class SelectTest extends AbstractJavaSamplerClient {
         List<MultiSearchService.SearchRequest> list = new ArrayList<MultiSearchService.SearchRequest>();
         multiSearchService = this.client.NewMultiSearchService();
         MultiSearchService.SearchRequest searchRequest = new MultiSearchService.SearchRequest();
-        searchRequest.source = this.searchSql;
+        searchRequest.source = replaceValue();
         list.add(searchRequest);
         try {
             multiSearchService.search(list);
@@ -125,7 +135,7 @@ public class SelectTest extends AbstractJavaSamplerClient {
         ScrollSearchService scrollSearchService = this.client.NewScrollSearchService();
         SearchService.SearchRequest searchRequest = new SearchService.SearchRequest();
         searchRequest.scroll = this.searchScrool;
-        searchRequest.query = this.searchSql;
+        searchRequest.query = replaceValue();
         searchRequest.size = 7;
         scrollSearchService = this.client.NewScrollSearchService();
         try {
@@ -145,7 +155,7 @@ public class SelectTest extends AbstractJavaSamplerClient {
         PartialSearchService.SearchRequest request = new PartialSearchService.SearchRequest();
         //参数用,分隔，严格按照定义
         String[] params = this.searchParam.split(",");
-        request.queryString = this.searchSql;
+        request.queryString = replaceValue();
         request.size = Integer.parseInt(params[0]);
         request.sort = "timestamp";
         request.startTime = Long.parseLong(params[1]);
@@ -165,7 +175,7 @@ public class SelectTest extends AbstractJavaSamplerClient {
         SearchService.SearchRequest request = new SearchService.SearchRequest();
         String[] paranms = this.searchParam.split(",");
         request.size = Integer.parseInt(paranms[0]);
-        request.query = this.searchSql;
+        request.query = replaceValue();
         try {
             SearchService.SearchResult result = searchService.search(repoName,request);
         } catch (QiniuException e) {
@@ -173,6 +183,36 @@ public class SelectTest extends AbstractJavaSamplerClient {
             success = false;
         }
         return success;
+    }
+
+    //固定日志格式，对指定字段进行随机匹配,固定随机第一个字段
+    //success:0 OR success:7166437 OR success:7173351 OR success:7165826 OR success:7167148 默认这样的
+    private String replaceValue(){
+        if(!this.changeSql){
+            return this.searchSql;
+        }
+        String splitstr = "";
+        String sql = this.searchSql.trim(); //先去掉空格
+        if(sql.contains("OR")){
+            splitstr = "OR";
+        }else {
+            splitstr = "AND";
+        }
+        String[] ss = sql.split(splitstr);
+        if (ss.length < 0){
+            return this.searchSql;
+        }
+        String value = ss[0].split(":")[1];
+        String value_after = "";
+        //四分之一的概率不需要拼接
+        if(new Random().nextInt(100) > 25){
+            String time = String.valueOf(System.currentTimeMillis());
+            //取时间戳的最后9位进行拼接
+            value_after = value + time.substring(time.length()-9,time.length());
+            //替换原有的
+            this.searchSql.replace(value,value_after);
+        }
+        return this.searchSql;
     }
 }
 
